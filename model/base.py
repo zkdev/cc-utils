@@ -125,7 +125,11 @@ class BasicCredentials(ModelBase):
     def username(self):
         return self.raw.get('username')
 
+    @DeprecationWarning
     def passwd(self):
+        return self.raw.get('password')
+
+    def password(self):
         return self.raw.get('password')
 
     def as_tuple(self):

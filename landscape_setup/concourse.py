@@ -136,7 +136,48 @@ def create_instance_specific_helm_values(
     # 'main'-team credentials need to be included in the values.yaml, unlike the other teams
     concourse_uam_cfg_name = concourse_cfg.concourse_uam_config()
     concourse_uam_cfg = config_factory.concourse_uam(concourse_uam_cfg_name)
-    main_team = concourse_uam_cfg.main_team()
+    main_team_config = concourse_uam_cfg.main_team()
+
+    main_team_auths = [
+        concourse_uam_cfg.auth(name) for name in main_team_config.auths()
+    ]
+
+    main_team_local_user_names = ','.join([
+        auth.username()
+        for auth in main_team_auths
+        if auth.auth_type() is AuthType.LOCAL_USER
+    ])
+
+    main_team_gh_auths = [
+        auth
+        for auth in main_team_auths
+        if auth.auth_type() is AuthType.GITHUB_OAUTH
+    ]
+
+    if len(main_team_gh_auths) > 1:
+        warning('More than one github oauth defined for main team - defaulting to first')
+
+    main_team_gh_auth = main_team_gh_auths[0]
+    main_team_gh_credentials = f'{main_team_gh_auth.github_org()}:{main_team_gh_auth.github_team()}'
+
+    def encrypt_password(password):
+        return bcrypt.hashpw(
+            password.encode('utf-8'),
+            bcrypt.gensalt()
+        ).decode('utf-8')
+
+    # we need to set all local users when installing concourse
+    local_user_auths = [
+        auth
+        for auth in concourse_uam_cfg.auths()
+        if auth.auth_type is AuthType.LOCAL_USER
+    ]
+
+    local_user_credentials = ','.join([
+        f'{auth.username()}:{encrypt_password(auth.password())}'
+        for auth in local_user_auths
+    ])
+
     external_url = concourse_cfg.external_url()
     external_host = urlparse(external_url).netloc
     ingress_host = concourse_cfg.ingress_host()
@@ -153,20 +194,15 @@ def create_instance_specific_helm_values(
         else:
             github_host = None
 
-        bcrypted_pwd = bcrypt.hashpw(
-            main_team.password().encode('utf-8'),
-            bcrypt.gensalt()
-        ).decode('utf-8')
-
         instance_specific_values = {
             'concourse': {
                 'web': {
                     'externalUrl': external_url,
                     'auth': {
                         'mainTeam': {
-                            'localUser': main_team.username(),
+                            'localUser': main_team_local_user_names,
                             'github': {
-                                'team': main_team.github_auth_team()
+                                'team': main_team_gh_credentials
                             }
                         },
                         'github': {
@@ -176,9 +212,9 @@ def create_instance_specific_helm_values(
                 }
             },
             'secrets': {
-                'localUsers': main_team.username() + ':' + bcrypted_pwd,
-                'githubClientId': main_team.github_auth_client_id(),
-                'githubClientSecret': main_team.github_auth_client_secret()
+                'localUsers': local_user_credentials,
+                'githubClientId': main_team_gh_credentials.client_id(),
+                'githubClientSecret': main_team_gh_credentials.client_secret(),
             },
             'web': {
                 'ingress': {

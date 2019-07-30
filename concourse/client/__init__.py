@@ -31,6 +31,11 @@ from model.concourse import (
     ConcourseApiVersion,
     ConcourseConfig,
 )
+
+from model.concourse_uam import (
+    ConcourseRole,
+    ConcourseAuth,
+)
 from http_requests import AuthenticatedRequestBuilder
 
 warnings.filterwarnings('ignore', 'Unverified HTTPS request is being made.*', InsecureRequestWarning)
@@ -71,10 +76,18 @@ def from_cfg(concourse_cfg: ConcourseConfig, team_name: str, verify_ssl=False):
     cfg_factory = util.ctx().cfg_factory()
     concourse_uam_cfg_name = concourse_cfg.concourse_uam_config()
     concourse_uam_cfg = cfg_factory.concourse_uam(concourse_uam_cfg_name)
-    concourse_team = concourse_uam_cfg.team(team_name)
-    team_name = concourse_team.teamname()
-    username = concourse_team.username()
-    password = concourse_team.password()
+
+    team_auths = concourse_uam_cfg.team_auths(team_name, ConcourseAuth.LOCAL_USER, ConcourseRole.OWNER)
+    try:
+        suitable_auth = next(team_auths)
+    except StopIteration:
+        raise RuntimeError(
+            "No Auth with owner permissions and local user credentials found "
+            f"for concourse team '{team_name}'"
+        )
+
+    username = suitable_auth.username()
+    password = suitable_auth.password()
     concourse_version = concourse_cfg.concourse_version()
 
     request_builder = AuthenticatedRequestBuilder(
