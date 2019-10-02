@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import datetime
 import functools
 import os
@@ -23,6 +24,13 @@ import elasticsearch
 import model.elasticsearch
 import concourse.util
 import util
+
+
+class MetadataClass(enum.Flag):
+    NONE = enum.auto()
+    PIPELINE_METADATA = enum.auto()
+    BUILD_METADATA = enum.auto()
+    ALL = PIPELINE_METADATA | BUILD_METADATA
 
 
 def from_cfg(
@@ -44,37 +52,21 @@ def _from_cfg(
 
 
 @functools.lru_cache()
-def _metadata_dict():
+def _pipeline_metadata():
     # XXX mv to concourse package; deduplicate with notify step
     if not util._running_on_ci():
         return {}
 
-    build = concourse.util.find_own_running_build()
     pipeline_metadata = concourse.util.get_pipeline_metadata()
     config_set = util.ctx().cfg_factory().cfg_set(pipeline_metadata.current_config_set_name)
     concourse_cfg = config_set.concourse()
 
     meta_dict = {
-      'build-id': build.id(),
-      'build-name': str(build.build_number()),
-      'build-job-name': pipeline_metadata.job_name,
-      'build-team-name': pipeline_metadata.team_name,
-      'build-pipeline-name': pipeline_metadata.pipeline_name,
-      'atc-external-url': concourse_cfg.external_url(),
+        'build-job-name': pipeline_metadata.job_name,
+        'build-team-name': pipeline_metadata.team_name,
+        'build-pipeline-name': pipeline_metadata.pipeline_name,
+        'atc-external-url': concourse_cfg.external_url(),
     }
-
-    # XXX deduplicate; mv to concourse package
-    meta_dict['concourse_url'] = util.urljoin(
-        meta_dict['atc-external-url'],
-        'teams',
-        meta_dict['build-team-name'],
-        'pipelines',
-        meta_dict['build-pipeline-name'],
-        'jobs',
-        meta_dict['build-job-name'],
-        'builds',
-        meta_dict['build-name'],
-    )
 
     # XXX do not hard-code env variables
     meta_dict['effective_version'] = os.environ.get('EFFECTIVE_VERSION')
@@ -82,6 +74,45 @@ def _metadata_dict():
     meta_dict['creation_date'] = datetime.datetime.now().isoformat()
 
     return meta_dict
+
+
+@functools.lru_cache()
+def _build_metadata():
+    if not util._running_on_ci():
+        return {}
+    build = concourse.util.find_own_running_build()
+
+    build_metadata_dict = {
+        'build-id': build.id(),
+        'build-name': str(build.build_number()),
+    }
+
+    return build_metadata_dict
+
+
+def _metadata(metadata_to_inject: MetadataClass):
+    md = {}
+    if MetadataClass.PIPELINE_METADATA in metadata_to_inject:
+        md.update(_pipeline_metadata())
+    if MetadataClass.BUILD_METADATA in metadata_to_inject:
+        md.update(_build_metadata())
+    if (
+        MetadataClass.PIPELINE_METADATA in metadata_to_inject and
+        MetadataClass.BUILD_METADATA in metadata_to_inject
+    ):
+        # XXX deduplicate; mv to concourse package
+        md['concourse_url'] = util.urljoin(
+            md['atc-external-url'],
+            'teams',
+            md['build-team-name'],
+            'pipelines',
+            md['build-pipeline-name'],
+            'jobs',
+            md['build-job-name'],
+            'builds',
+            md['build-name'],
+        )
+    return md
 
 
 class ElasticSearchClient(object):
@@ -95,7 +126,7 @@ class ElasticSearchClient(object):
         self,
         index: str,
         body: dict,
-        inject_metadata=True,
+        inject_metadata=MetadataClass.ALL,
         *args,
         **kwargs,
     ):
@@ -109,9 +140,8 @@ class ElasticSearchClient(object):
                 '''
             )
 
-        if inject_metadata and _metadata_dict():
-            md = _metadata_dict()
-            body['cc_meta'] = md
+        if inject_metadata and util._running_on_ci():
+            body['cc_meta'] = _metadata(metadata_to_inject=inject_metadata)
 
         return self._api.index(
             index=index,
@@ -125,7 +155,7 @@ class ElasticSearchClient(object):
         self,
         index: str,
         body: [dict],
-        inject_metadata=True,
+        inject_metadata=MetadataClass.ALL,
         *args,
         **kwargs,
     ):
@@ -150,13 +180,15 @@ class ElasticSearchClient(object):
     def store_bulk(
         self,
         body: str,
-        inject_metadata=True,
+        inject_metadata=MetadataClass.ALL,
         *args,
         **kwargs,
     ):
         util.check_type(body, str)
 
-        if inject_metadata and _metadata_dict():
+        if inject_metadata and util._running_on_ci():
+            md = _metadata(metadata_to_inject=inject_metadata)
+
             def inject_meta(line):
                 parsed = json.loads(line)
                 if 'index' not in parsed:
@@ -164,7 +196,6 @@ class ElasticSearchClient(object):
                     return json.dumps(parsed)
                 return line
 
-            md = _metadata_dict()
             patched_body = '\n'.join([inject_meta(line) for line in body.splitlines()])
             body = patched_body
 

@@ -28,7 +28,7 @@ def store(index: str, body: str, cfg_name: str):
     result = elastic_client.store_document(
         index=index,
         body=json_body,
-        inject_metadata=True,
+        inject_metadata=ccc.elasticsearch.MetadataClass.ALL,
     )
     print(result)
 
@@ -46,7 +46,7 @@ def store_files(index: str, files: [str], cfg_name: str):
             result = elastic_client.store_document(
                 index=index,
                 body=json_body,
-                inject_metadata=True,
+                inject_metadata=ccc.elasticsearch.MetadataClass.ALL,
                 )
             print(result)
 
@@ -60,7 +60,7 @@ def store_bulk(file: str, cfg_name: str):
     with open(file) as file_handle:
         result = elastic_client.store_bulk(
             body=file_handle.read(),
-            inject_metadata=True,
+            inject_metadata=ccc.elasticsearch.MetadataClass.ALL,
         )
         print(result)
 
