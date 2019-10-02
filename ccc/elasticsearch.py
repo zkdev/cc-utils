@@ -127,7 +127,7 @@ class ElasticSearchClient(object):
         self,
         index: str,
         body: dict,
-        inject_metadata=MetadataClass.ALL,
+        inject_metadata=MetadataClass.PIPELINE_METADATA,
         *args,
         **kwargs,
     ):
@@ -156,7 +156,7 @@ class ElasticSearchClient(object):
         self,
         index: str,
         body: [dict],
-        inject_metadata=MetadataClass.ALL,
+        inject_metadata=MetadataClass.PIPELINE_METADATA,
         *args,
         **kwargs,
     ):
@@ -181,7 +181,7 @@ class ElasticSearchClient(object):
     def store_bulk(
         self,
         body: str,
-        inject_metadata=MetadataClass.ALL,
+        inject_metadata=MetadataClass.PIPELINE_METADATA,
         *args,
         **kwargs,
     ):
