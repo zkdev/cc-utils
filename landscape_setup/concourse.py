@@ -302,11 +302,6 @@ def deploy_concourse_landscape(
     container_registry = config_factory.container_registry(image_pull_secret_name)
     cr_credentials = container_registry.credentials()
 
-    # TLS config
-    tls_config_name = concourse_cfg.tls_config()
-    tls_config = config_factory.tls_config(tls_config_name)
-    tls_secret_name = concourse_cfg.tls_secret_name()
-
     # Helm config
     helm_chart_default_values_name = concourse_cfg.helm_chart_default_values_config()
     default_helm_values = config_factory.concourse_helmchart(helm_chart_default_values_name).raw
@@ -328,13 +323,6 @@ def deploy_concourse_landscape(
     create_image_pull_secret(
         credentials=cr_credentials,
         image_pull_secret_name=image_pull_secret_name,
-        namespace=deployment_name,
-    )
-
-    info('Creating tls-secret ...')
-    create_tls_secret(
-        tls_config=tls_config,
-        tls_secret_name=tls_secret_name,
         namespace=deployment_name,
     )
 

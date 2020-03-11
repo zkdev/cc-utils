@@ -68,7 +68,6 @@ def create_webhook_dispatcher_helm_values(
     helm_values = {
         'ingress_host': webhook_dispatcher_deployment_cfg.ingress_host(),
         'external_url': webhook_dispatcher_deployment_cfg.external_url(),
-        'tls_name': webhook_dispatcher_deployment_cfg.tls_config_name(),
         'image_repository': image_config.image_name(),
         'image_tag': image_config.image_tag(),
         'cmd_args': cmd_args,
@@ -97,18 +96,6 @@ def deploy_webhook_dispatcher_landscape(
     kube_ctx.set_kubecfg(kubernetes_config.kubeconfig())
 
     ensure_cluster_version(kubernetes_config)
-
-    # TLS config
-    tls_config_name = webhook_dispatcher_deployment_cfg.tls_config_name()
-    tls_config = cfg_factory.tls_config(tls_config_name)
-    tls_secret_name = "webhook-dispatcher-tls"
-
-    info('Creating tls-secret ...')
-    create_tls_secret(
-        tls_config=tls_config,
-        tls_secret_name=tls_secret_name,
-        namespace=deployment_name,
-    )
 
     kubernetes_cfg_name = webhook_dispatcher_deployment_cfg.kubernetes_config_name()
     kubernetes_cfg = cfg_factory.kubernetes(kubernetes_cfg_name)

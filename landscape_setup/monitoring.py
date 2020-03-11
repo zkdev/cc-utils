@@ -67,9 +67,6 @@ def deploy_monitoring_landscape(
     monitoring_cfg = cfg_factory.monitoring(monitoring_config_name)
     monitoring_namespace = monitoring_cfg.namespace()
 
-    tls_config_name = concourse_cfg.tls_config()
-    tls_config = cfg_factory.tls_config(tls_config_name)
-
     # deploy kube-state-metrics
     kube_state_metrics_helm_values = create_kube_state_metrics_helm_values(
         monitoring_cfg=monitoring_cfg
@@ -147,6 +144,8 @@ def generate_monitoring_ingress_object(
                 "nginx.ingress.kubernetes.io/auth-type": "basic",
                 "nginx.ingress.kubernetes.io/auth-secret": secret_name,
                 "nginx.ingress.kubernetes.io/rewrite-target": "/$2",
+                "cert.gardener.cloud/purpose": "managed",
+                "cert.gardener.cloud/issuer": "ci-issuer",
             },
             name=service_name,
             namespace=namespace,

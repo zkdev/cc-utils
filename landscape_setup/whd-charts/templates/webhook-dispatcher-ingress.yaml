@@ -5,6 +5,8 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: nginx
     kubernetes.io/tls-acme: "true"
+    cert.gardener.cloud/purpose: managed
+    cert.gardener.cloud/issuer: ci-issuer
 spec:
   rules:
   - host: {{ .Values.ingress_host }}
