@@ -1,0 +1,59 @@
+name: Release cfg-mgmt
+on:
+  workflow_dispatch: ~
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-and-publish-cfg-mgmt.yaml
+    with:
+      release: true
+      version-operation: finalise
+
+  bump-version:
+    runs-on: ubuntu-latest
+    needs:
+    - build
+    steps:
+    - uses: actions/checkout@v4
+    - uses: gardener/cc-utils/.github/actions/setup-git-identity@master
+
+    - name: create-bump-commit
+      id: bump
+      uses: ./.github/actions/version
+      with:
+        read-callback: .ci/read-version-cfg-mgmt
+        write-callback: .ci/write-version-cfg-mgmt
+        version-operation: bump-minor
+        commit-message: "Bump cfg-mgmt to ${version}"
+        repository-operation: commit-to-head
+
+    - name: push-bump-commit
+      shell: bash
+      run: |
+        git push origin "${{ github.ref }}"
+
+  # pypi:
+  #   runs-on: ubuntu-latest
+  #   name: Publish to PYPI
+  #   needs:
+  #     - build
+  #   permissions:
+  #     contents: read
+  #     id-token: write
+  #   steps:
+  #     - name: Retrieve Distribution Packages
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: distribution-packages
+  #         path: /tmp/dist
+  #     - name: prepare build-filesystem
+  #       id: prepare
+  #       run: |
+  #         cp -r /tmp/dist .
+  #         ls -lta dist/
+
+  #     - name: publish to pypi
+  #       uses: pypa/gh-action-pypi-publish@release/v1

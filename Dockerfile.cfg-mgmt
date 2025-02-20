@@ -1,0 +1,10 @@
+FROM europe-docker.pkg.dev/gardener-project/releases/cicd/job-image:1.2597.0
+COPY cfg_mgmt/VERSION /metadata/VERSION
+
+RUN --mount=type=bind,source=/dist,target=/dist \
+  pip3 install \
+  --upgrade \
+  --no-cache-dir \
+  --find-links /dist \
+  --break-system-packages \
+  gardener-cicd-cfg-mgmt==$(cat /metadata/VERSION)
